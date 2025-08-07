@@ -54,54 +54,26 @@ public class MailchimpOAuthController {
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
             .build();
 
-//    @GetMapping("/start")
-//    public Mono<ResponseEntity<Void>> startOauthFlow(@RequestParam("state") String state) {
-//
-//        String mailchimpAuthUrl = UriComponentsBuilder
-//                .fromHttpUrl("https://login.mailchimp.com/oauth2/authorize")
-//                .queryParam("response_type", "code")
-//                .queryParam("client_id", clientId)
-//                .queryParam("redirect_uri", redirectUri)
-//                .queryParam("state", state)
-//                .build()
-//                .toUriString();
-//
-//        HttpHeaders headers = new HttpHeaders();
-//        headers.setLocation(URI.create(mailchimpAuthUrl));
-//        return Mono.just(new ResponseEntity<>(headers, HttpStatus.FOUND));
-//    }
-
-    @PostMapping("/start")
-    public ResponseEntity<Map<String, String>> startOauth(
-            @RequestHeader("Stripe-Signature") String signature,
-            @RequestBody MailchimpOAuthStartRequest request) throws JsonProcessingException {
-
-        try {
-            String payload = "{\"user_id\":\"" + request.stripeUserId() + "\",\"account_id\":\"" + request.stripeAccountId() + "\"}";
-            Webhook.Signature.verifyHeader(payload, signature, stripeSecret, 1000L);
-        } catch (SignatureVerificationException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Stripe signature", e);
+    @GetMapping("/callback")
+    public Mono<ResponseEntity<Void>> handleCallback(
+            @RequestParam String code, 
+            @RequestParam String state,
+            @RequestParam(required = false) String error) {
+        
+        // Handle OAuth errors from Mailchimp
+        if (error != null) {
+            System.err.println("Mailchimp OAuth error: " + error);
+            return redirectToStripeWithError("OAuth authorization failed: " + error);
         }
 
-        // Build the full Mailchimp authorization URL
-        String authUrl = UriComponentsBuilder
-                .fromUriString("https://login.mailchimp.com/oauth2/authorize")
-                .queryParam("response_type", "code")
-                .queryParam("client_id", clientId)
-                .queryParam("redirect_uri", redirectUri)
-                .queryParam("state", request.state())
-                .toUriString();
+        if (code == null || code.isEmpty()) {
+            System.err.println("Missing authorization code from Mailchimp");
+            return redirectToStripeWithError("Missing authorization code");
+        }
 
-        // Create the response body
-        Map<String, String> responseBody = Map.of("redirectUrl", authUrl);
-
-        return ResponseEntity.ok(responseBody);
-    }
-
-    @GetMapping("/callback")
-    public Mono<String> handleCallback(@RequestParam String code, @RequestParam String state) {
         if (state == null || state.isEmpty()) {
-            return Mono.error(new IllegalArgumentException("Missing or empty state parameter"));
+            System.err.println("Missing state parameter");
+            return redirectToStripeWithError("Missing state parameter");
         }
 
         String stripeAccountId = state;
@@ -109,53 +81,97 @@ public class MailchimpOAuthController {
         return Mono.fromCallable(() -> stripeUserRepository.existsByStripeAccountId(stripeAccountId))
                 .flatMap(exists -> {
                     if (!exists) {
-                        return Mono.error(new IllegalArgumentException("Stripe account ID not found: " + stripeAccountId));
+                        System.err.println("Stripe account ID not found: " + stripeAccountId);
+                        return redirectToStripeWithError("Invalid account");
                     }
 
-                    MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-                    formData.add("grant_type", "authorization_code");
-                    formData.add("client_id", clientId);
-                    formData.add("client_secret", clientSecret);
-                    formData.add("redirect_uri", redirectUri);
-                    formData.add("code", code);
-
-                    return webClient.post()
-                            .uri("/oauth2/token")
-                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-                            .bodyValue(formData)
-                            .retrieve()
-                            .onStatus(status -> status.isError(), response ->
-                                    response.bodyToMono(String.class).flatMap(errorBody -> {
-                                        System.err.println("Mailchimp error: " + errorBody);
-                                        return Mono.error(new RuntimeException("Mailchimp token exchange failed: " + errorBody));
-                                    })
-                            )
-                            .bodyToMono(MailchimpTokenResponse.class)
+                    // Exchange authorization code for access token
+                    return exchangeCodeForToken(code)
                             .flatMap(tokenResponse -> {
                                 String accessToken = tokenResponse.getAccess_token();
-
-                                return webClient.get()
-                                        .uri("/oauth2/metadata")
-                                        .header("Authorization", "OAuth " + accessToken)
-                                        .retrieve()
-                                        .onStatus(status -> status.isError(), response ->
-                                                response.bodyToMono(String.class).flatMap(errorBody -> {
-                                                    System.err.println("Mailchimp error: " + errorBody);
-                                                    return Mono.error(new RuntimeException("Mailchimp token exchange failed: " + errorBody));
-                                                })
-                                        )
-                                        .bodyToMono(MailchimpMetadataResponse.class)
-                                        .map(MailchimpMetadataResponse::getDc)
+                                
+                                // Get server metadata
+                                return getMailchimpMetadata(accessToken)
                                         .flatMap(serverPrefix -> {
-                                            MailchimpUser mailchimpUser = new MailchimpUser();
-                                            mailchimpUser.setStripeAccountId(stripeAccountId);
-                                            mailchimpUser.setToken(accessToken);
-                                            mailchimpUser.setServerPrefix(serverPrefix);
-
-                                            return Mono.fromCallable(() -> mailchimpUserRepository.save(mailchimpUser))
-                                                    .map(saved -> "Mailchimp token and server prefix saved successfully");
+                                            // Save or update Mailchimp user
+                                            return saveMailchimpUser(stripeAccountId, accessToken, serverPrefix)
+                                                    .then(redirectToStripeWithSuccess());
                                         });
                             });
+                })
+                .onErrorResume(error1 -> {
+                    System.err.println("OAuth callback error: " + error1.getMessage());
+                    return redirectToStripeWithError("Connection failed");
                 });
+    }
+
+    private Mono<MailchimpTokenResponse> exchangeCodeForToken(String code) {
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("grant_type", "authorization_code");
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
+        formData.add("redirect_uri", redirectUri);
+        formData.add("code", code);
+
+        return webClient.post()
+                .uri("/oauth2/token")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+                .bodyValue(formData)
+                .retrieve()
+                .onStatus(status -> status.isError(), response ->
+                        response.bodyToMono(String.class).flatMap(errorBody -> {
+                            System.err.println("Mailchimp token exchange error: " + errorBody);
+                            return Mono.error(new RuntimeException("Token exchange failed: " + errorBody));
+                        })
+                )
+                .bodyToMono(MailchimpTokenResponse.class);
+    }
+
+    private Mono<String> getMailchimpMetadata(String accessToken) {
+        return webClient.get()
+                .uri("/oauth2/metadata")
+                .header("Authorization", "OAuth " + accessToken)
+                .retrieve()
+                .onStatus(status -> status.isError(), response ->
+                        response.bodyToMono(String.class).flatMap(errorBody -> {
+                            System.err.println("Mailchimp metadata error: " + errorBody);
+                            return Mono.error(new RuntimeException("Metadata fetch failed: " + errorBody));
+                        })
+                )
+                .bodyToMono(MailchimpMetadataResponse.class)
+                .map(MailchimpMetadataResponse::getDc);
+    }
+
+    private Mono<MailchimpUser> saveMailchimpUser(String stripeAccountId, String accessToken, String serverPrefix) {
+        return Mono.fromCallable(() -> {
+            // Check if user already exists and update, or create new
+            MailchimpUser mailchimpUser = mailchimpUserRepository
+                    .findByStripeAccountId(stripeAccountId)
+                    .orElse(new MailchimpUser());
+            
+            mailchimpUser.setStripeAccountId(stripeAccountId);
+            mailchimpUser.setToken(accessToken);
+            mailchimpUser.setServerPrefix(serverPrefix);
+            
+            return mailchimpUserRepository.save(mailchimpUser);
+        });
+    }
+
+    private Mono<ResponseEntity<Void>> redirectToStripeWithSuccess() {
+        HttpHeaders headers = new HttpHeaders();
+        // Redirect back to Stripe Dashboard - adjust URL as needed
+        headers.setLocation(URI.create("https://dashboard.stripe.com/apps/success"));
+        return Mono.just(new ResponseEntity<>(headers, HttpStatus.FOUND));
+    }
+
+    private Mono<ResponseEntity<Void>> redirectToStripeWithError(String errorMessage) {
+        HttpHeaders headers = new HttpHeaders();
+        // Redirect back to Stripe Dashboard with error - adjust URL as needed
+        String errorUrl = UriComponentsBuilder
+                .fromHttpUrl("https://dashboard.stripe.com/apps/error")
+                .queryParam("error", errorMessage)
+                .toUriString();
+        headers.setLocation(URI.create(errorUrl));
+        return Mono.just(new ResponseEntity<>(headers, HttpStatus.FOUND));
     }
 }
