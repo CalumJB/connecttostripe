@@ -1,0 +1,5 @@
+CREATE TABLE stripe_users (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    stripe_user_id VARCHAR(255) NOT NULL UNIQUE,
+    stripe_account_id VARCHAR(255) NOT NULL UNIQUE
+);
