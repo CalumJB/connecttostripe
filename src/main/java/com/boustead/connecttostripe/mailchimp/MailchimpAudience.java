@@ -1,4 +1,10 @@
 package com.boustead.connecttostripe.mailchimp;
 
-public record MailchimpAudience(MailchimpAudienceList audienceList) {
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record MailchimpAudience(
+    String id,
+    String name
+) {
 }

@@ -40,6 +40,9 @@ public class MailchimpOAuthController {
     @Value("${mailchimp.redirect-uri}")
     private String redirectUri;
 
+    @Value("${mailchimp.stripe.redirect-uri}")
+    private String stripeUri;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -160,7 +163,7 @@ public class MailchimpOAuthController {
     private Mono<ResponseEntity<Void>> redirectToStripeWithSuccess() {
         HttpHeaders headers = new HttpHeaders();
         // Redirect back to Stripe Dashboard - adjust URL as needed
-        headers.setLocation(URI.create("https://dashboard.stripe.com/apps/success"));
+        headers.setLocation(URI.create(stripeUri));
         return Mono.just(new ResponseEntity<>(headers, HttpStatus.FOUND));
     }
 
@@ -168,7 +171,7 @@ public class MailchimpOAuthController {
         HttpHeaders headers = new HttpHeaders();
         // Redirect back to Stripe Dashboard with error - adjust URL as needed
         String errorUrl = UriComponentsBuilder
-                .fromHttpUrl("https://dashboard.stripe.com/apps/error")
+                .fromHttpUrl(stripeUri)
                 .queryParam("error", errorMessage)
                 .toUriString();
         headers.setLocation(URI.create(errorUrl));

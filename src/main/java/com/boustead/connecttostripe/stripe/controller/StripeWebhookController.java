@@ -1,5 +1,6 @@
 package com.boustead.connecttostripe.stripe.controller;
 
+import com.boustead.connecttostripe.mailchimp.MailchimpUser;
 import com.boustead.connecttostripe.mailchimp.MailchimpUserRepository;
 import com.boustead.connecttostripe.stripe.service.StripeSignatureVerifier;
 import com.google.gson.JsonSyntaxException;
@@ -17,7 +18,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/stripe")
@@ -54,9 +59,16 @@ public class StripeWebhookController {
             return Mono.just("OK");
         }
 
-        // check that account is setup with mailchimp token and that an audience has been selected
-        if(mailchimpUserRepository.existsByStripeAccountId(account)) {
-            System.out.println("Received event but account not linked");
+        // check that account is setup with mailchimp token
+        Optional<MailchimpUser> mailchimpUserOpt = mailchimpUserRepository.findByStripeAccountId(account);
+        if(mailchimpUserOpt.isEmpty()) {
+            System.out.println("Received event but account not linked to Mailchimp");
+            return Mono.just("OK");
+        }
+
+        MailchimpUser mailchimpUser = mailchimpUserOpt.get();
+        if(mailchimpUser.getSelectedAudienceId() == null || mailchimpUser.getSelectedAudienceId().isEmpty()) {
+            System.out.println("Received event but no audience selected for account: " + account);
             return Mono.just("OK");
         }
 
@@ -83,12 +95,11 @@ public class StripeWebhookController {
                     return Mono.just("OK");
                 }
 
-                // now we can send it to mailchimp list
-                // get mailchimp audience
-
-                // send to specific audience
-
-                System.out.println("PaymentIntent was successful: " + checkoutSession.getId());
+                // Add customer to selected Mailchimp audience
+                return addCustomerToMailchimpAudience(mailchimpUser, customerEmail)
+                        .doOnSuccess(result -> System.out.println("Customer " + customerEmail + " added to Mailchimp audience: " + mailchimpUser.getSelectedAudienceId()))
+                        .doOnError(error -> System.err.println("Failed to add customer to Mailchimp: " + error.getMessage()))
+                        .then(Mono.just("OK"));
             }
             default -> {
                 System.out.println("Unhandled event type: " + event.getType());
@@ -96,5 +107,33 @@ public class StripeWebhookController {
         }
 
         return Mono.just("OK");
+    }
+
+    private Mono<Void> addCustomerToMailchimpAudience(MailchimpUser mailchimpUser, String customerEmail) {
+        String token = mailchimpUser.getToken();
+        String serverPrefix = mailchimpUser.getServerPrefix();
+        String audienceId = mailchimpUser.getSelectedAudienceId();
+
+        WebClient mailchimpClient = WebClient.builder()
+                .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
+                .defaultHeader("Authorization", "OAuth " + token)
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+
+        Map<String, Object> memberData = Map.of(
+                "email_address", customerEmail,
+                "status", "subscribed"
+        );
+
+        return mailchimpClient
+                .post()
+                .uri("/lists/{list_id}/members", audienceId)
+                .bodyValue(memberData)
+                .retrieve()
+                .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), 
+                         response -> response.bodyToMono(String.class)
+                                 .flatMap(error -> Mono.error(new RuntimeException("Mailchimp API error: " + error))))
+                .bodyToMono(String.class)
+                .then();
     }
 }

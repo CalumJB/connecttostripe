@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/mailchimp")
+@RequestMapping("/api/mailchimp")
 public class MailchimpUserController {
 
     @Value("${stripe.signing.secret}")
@@ -23,10 +23,8 @@ public class MailchimpUserController {
     @Autowired
     MailchimpUserRepository mailchimpUserRepository;
 
-    // get users audiences
-    // select preferred audience
-    @GetMapping("user/audiences")
-    public Mono<ResponseEntity<UserAudienceListResponse>> getMailchimpUserAudiences(
+@PostMapping("user/audiences")
+    public Mono<ResponseEntity<MailchimpAudienceList>> getMailchimpUserAudiences(
             @RequestHeader(name = "Stripe-Signature") String signature,
             @RequestBody Map<String, String> body) {
 
@@ -70,8 +68,79 @@ public class MailchimpUserController {
                                     )
                             )
                             .bodyToMono(MailchimpAudienceList.class)
-                            .map(UserAudienceListResponse::new)
                             .map(ResponseEntity::ok);
                 });
+    }
+
+    @PutMapping("user/audience/select")
+    public Mono<ResponseEntity<String>> selectMailchimpAudience(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+        String audienceId = body.get("audience_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        if (audienceId == null || audienceId.trim().isEmpty()) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "audience_id is required"
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            return mailchimpUserRepository.findByStripeAccountId(accountId)
+                    .map(user -> {
+                        user.setSelectedAudienceId(audienceId);
+                        mailchimpUserRepository.save(user);
+                        return ResponseEntity.ok("Audience selected successfully");
+                    })
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Mailchimp user not found for accountId: " + accountId
+                    ));
+        });
+    }
+
+    @PostMapping("user/audience/selected")
+    public Mono<ResponseEntity<Map<String, String>>> getSelectedAudience(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            return mailchimpUserRepository.findByStripeAccountId(accountId)
+                    .map(user -> {
+                        String selectedAudienceId = user.getSelectedAudienceId();
+                        Map<String, String> response = Map.of(
+                                "selected_audience_id", selectedAudienceId != null ? selectedAudienceId : ""
+                        );
+                        return ResponseEntity.ok(response);
+                    })
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Mailchimp user not found for accountId: " + accountId
+                    ));
+        });
     }
 }

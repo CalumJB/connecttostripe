@@ -21,6 +21,9 @@ public class MailchimpUser {
     @Column(name = "serverPrefix", nullable = false)
     private String serverPrefix;
 
+    @Column(name = "selected_audience_id")
+    private String selectedAudienceId;
+
     // Getters and setters
 
     public Long getId() {
@@ -49,5 +52,13 @@ public class MailchimpUser {
 
     public void setServerPrefix(String serverPrefix) {
         this.serverPrefix = serverPrefix;
+    }
+
+    public String getSelectedAudienceId() {
+        return selectedAudienceId;
+    }
+
+    public void setSelectedAudienceId(String selectedAudienceId) {
+        this.selectedAudienceId = selectedAudienceId;
     }
 }
