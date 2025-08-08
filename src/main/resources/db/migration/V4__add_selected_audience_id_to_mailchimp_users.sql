@@ -1,0 +1,1 @@
+ALTER TABLE mailchimp_users ADD COLUMN selected_audience_id VARCHAR(255);
