@@ -8,11 +8,11 @@
 		<version>3.5.3</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.boustead</groupId>
+	<groupId>app.connectto</groupId>
 	<artifactId>connecttostripe</artifactId>
-	<version>0.0.3</version>
-	<name>connect to stripe</name>
-	<description>Demo project for Spring Boot</description>
+	<version>1.0.0</version>
+	<name>connecttostripe</name>
+	<description>connect to stripe</description>
 	<url/>
 	<licenses>
 		<license/>

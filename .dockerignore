@@ -1,0 +1,15 @@
+target/
+!target/connecttostripe-1.0.0.jar
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+*.log
+.DS_Store
+.vscode
+.idea
+*.iml
+*.jar
+!target/*.jar
