@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>app.connectto</groupId>
 	<artifactId>connecttostripe</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.5</version>
 	<name>connecttostripe</name>
 	<description>connect to stripe</description>
 	<url/>

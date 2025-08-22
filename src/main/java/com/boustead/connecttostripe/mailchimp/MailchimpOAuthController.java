@@ -1,5 +1,7 @@
 package com.boustead.connecttostripe.mailchimp;
 
+import com.boustead.connecttostripe.exception.MailchimpOAuthException;
+import com.boustead.connecttostripe.exception.UserNotFoundException;
 import com.boustead.connecttostripe.stripe.StripeUserRepository;
 import com.boustead.connecttostripe.stripe.controller.CreateUserResponse;
 import com.boustead.connecttostripe.stripe.service.StripeSignatureVerifier;
@@ -7,6 +9,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.net.Webhook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +31,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/oauth/mailchimp")
 public class MailchimpOAuthController {
+
+    private static final Logger logger = LoggerFactory.getLogger(MailchimpOAuthController.class);
 
     @Value("${mailchimp.client-id}")
     private String clientId;
@@ -65,18 +71,18 @@ public class MailchimpOAuthController {
         
         // Handle OAuth errors from Mailchimp
         if (error != null) {
-            System.err.println("Mailchimp OAuth error: " + error);
+            logger.error("Mailchimp OAuth error received: {}", error);
             return redirectToStripeWithError("OAuth authorization failed: " + error);
         }
 
         if (code == null || code.isEmpty()) {
-            System.err.println("Missing authorization code from Mailchimp");
-            return redirectToStripeWithError("Missing authorization code");
+            logger.error("Missing authorization code from Mailchimp callback");
+            throw new MailchimpOAuthException("Missing authorization code from Mailchimp");
         }
 
         if (state == null || state.isEmpty()) {
-            System.err.println("Missing state parameter");
-            return redirectToStripeWithError("Missing state parameter");
+            logger.error("Missing state parameter in OAuth callback");
+            throw new MailchimpOAuthException("Missing state parameter - possible CSRF attack");
         }
 
         String stripeAccountId = state;
@@ -84,8 +90,8 @@ public class MailchimpOAuthController {
         return Mono.fromCallable(() -> stripeUserRepository.existsByStripeAccountId(stripeAccountId))
                 .flatMap(exists -> {
                     if (!exists) {
-                        System.err.println("Stripe account ID not found: " + stripeAccountId);
-                        return redirectToStripeWithError("Invalid account");
+                        logger.error("Stripe account ID not found in OAuth callback: {}", stripeAccountId);
+                        throw new UserNotFoundException("Stripe account not found: " + stripeAccountId);
                     }
 
                     // Exchange authorization code for access token
@@ -103,8 +109,8 @@ public class MailchimpOAuthController {
                             });
                 })
                 .onErrorResume(error1 -> {
-                    System.err.println("OAuth callback error: " + error1.getMessage());
-                    return redirectToStripeWithError("Connection failed");
+                    logger.error("OAuth callback processing error: {}", error1.getMessage(), error1);
+                    return redirectToStripeWithError("Connection failed: " + error1.getMessage());
                 });
     }
 
@@ -123,8 +129,8 @@ public class MailchimpOAuthController {
                 .retrieve()
                 .onStatus(status -> status.isError(), response ->
                         response.bodyToMono(String.class).flatMap(errorBody -> {
-                            System.err.println("Mailchimp token exchange error: " + errorBody);
-                            return Mono.error(new RuntimeException("Token exchange failed: " + errorBody));
+                            logger.error("Mailchimp token exchange failed. Status: {}, Response: {}", response.statusCode(), errorBody);
+                            return Mono.error(new MailchimpOAuthException("Token exchange failed: " + errorBody));
                         })
                 )
                 .bodyToMono(MailchimpTokenResponse.class);
@@ -137,8 +143,8 @@ public class MailchimpOAuthController {
                 .retrieve()
                 .onStatus(status -> status.isError(), response ->
                         response.bodyToMono(String.class).flatMap(errorBody -> {
-                            System.err.println("Mailchimp metadata error: " + errorBody);
-                            return Mono.error(new RuntimeException("Metadata fetch failed: " + errorBody));
+                            logger.error("Mailchimp metadata fetch failed. Status: {}, Response: {}", response.statusCode(), errorBody);
+                            return Mono.error(new MailchimpOAuthException("Metadata fetch failed: " + errorBody));
                         })
                 )
                 .bodyToMono(MailchimpMetadataResponse.class)

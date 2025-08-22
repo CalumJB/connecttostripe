@@ -6,37 +6,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/connecttostripe
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=password
-      - STRIPE_SIGNING_SECRET=${STRIPE_SIGNING_SECRET:-absec_pUIzOphYgf6AMt7Hy7v0h2q3EJKSqhiW}
-      - STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET:-whsec_4ce6fa9d9a226dd2bf88ab81c44f281dcd527283fbd03bdaa58f21a74ce7cfd9}
-      - MAILCHIMP_CLIENT_ID=${MAILCHIMP_CLIENT_ID:-386657553310}
-      - MAILCHIMP_CLIENT_SECRET=${MAILCHIMP_CLIENT_SECRET:-d5d92132a64b0bf58e6b4001818294c02c45e42ac1c293c27a}
-      - MAILCHIMP_REDIRECT_URI=${MAILCHIMP_REDIRECT_URI:-http://localhost:8080/api/oauth/mailchimp/callback}
-      - MAILCHIMP_STRIPE_REDIRECT_URI=${MAILCHIMP_STRIPE_REDIRECT_URI:-https://dashboard.stripe.com/dashboard?apps[com.example.connecttomailchimp][drawer]=}
-      - ENVIRONMENT=DOCKER
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=connecttostripe
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - STRIPE_SIGNING_SECRET=${STRIPE_SIGNING_SECRET}
+      - STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET}
+      - MAILCHIMP_CLIENT_ID=${MAILCHIMP_CLIENT_ID}
+      - MAILCHIMP_CLIENT_SECRET=${MAILCHIMP_CLIENT_SECRET}
+      - MAILCHIMP_REDIRECT_URI=${MAILCHIMP_REDIRECT_URI}
+      - MAILCHIMP_STRIPE_REDIRECT_URI=${MAILCHIMP_STRIPE_REDIRECT_URI}
