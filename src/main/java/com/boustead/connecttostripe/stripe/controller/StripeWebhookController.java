@@ -2,6 +2,7 @@ package com.boustead.connecttostripe.stripe.controller;
 
 import com.boustead.connecttostripe.mailchimp.MailchimpUser;
 import com.boustead.connecttostripe.mailchimp.MailchimpUserRepository;
+import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
 import com.boustead.connecttostripe.stripe.service.StripeSignatureVerifier;
 import com.google.gson.JsonSyntaxException;
 import com.stripe.exception.SignatureVerificationException;
@@ -36,6 +37,9 @@ public class StripeWebhookController {
     @Autowired
     MailchimpUserRepository mailchimpUserRepository;
 
+    @Autowired
+    StripeWebhookCounterService stripeWebhookCounterService;
+
     @Value("${environment}")
     private String environment;
 
@@ -66,7 +70,7 @@ public class StripeWebhookController {
             } else {
                 System.out.println("Received webhook with empty account.");
                 System.out.println("Assigning test account id to event.");
-                account = "acct_1RlwnA77HrZrcY86";
+                account = "acct_1RvwZk7l0o2aIIbm";
             }
 
         }
@@ -107,6 +111,8 @@ public class StripeWebhookController {
                     System.err.println("Received checkout event for account " + account + " but customer email was empty");
                     return Mono.just("OK");
                 }
+
+                stripeWebhookCounterService.incrementCheckoutSessionCount(account);
 
                 // Add customer to selected Mailchimp audience
                 return addCustomerToMailchimpAudience(mailchimpUser, customerEmail, customerName)
