@@ -120,6 +120,21 @@ public class StripeWebhookController {
                         .doOnError(error -> System.err.println("Failed to add customer to Mailchimp: " + error.getMessage()))
                         .then(Mono.just("OK"));
             }
+            case "account.application.deauthorized" -> {
+                System.out.println("Account " + account + " deauthorized the application");
+                
+                // Disconnect user from Mailchimp when they deauthorize the app
+                String finalAccount = account;
+                return Mono.fromCallable(() -> {
+                    int deletedRows = mailchimpUserRepository.deleteByStripeAccountId(finalAccount);
+                    if (deletedRows > 0) {
+                        System.out.println("Disconnected Mailchimp account for deauthorized Stripe account: " + finalAccount);
+                    } else {
+                        System.out.println("No Mailchimp connection found for deauthorized account: " + finalAccount);
+                    }
+                    return "OK";
+                });
+            }
             default -> {
                 System.out.println("Unhandled event type: " + event.getType());
             }

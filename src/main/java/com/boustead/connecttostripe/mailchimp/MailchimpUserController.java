@@ -62,9 +62,24 @@ public class MailchimpUserController {
                             .get()
                             .uri("/lists")
                             .retrieve()
+                            .onStatus(status -> status.value() == 401, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.UNAUTHORIZED,
+                                            "Mailchimp authorization failed. Please reconnect your Mailchimp account."
+                                    ))
+                            )
+                            .onStatus(status -> status.value() == 403, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.FORBIDDEN,
+                                            "Mailchimp access denied. Please check your account permissions."
+                                    ))
+                            )
                             .onStatus(HttpStatusCode::isError, response ->
                                     response.bodyToMono(String.class).flatMap(error ->
-                                            Mono.error(new RuntimeException("Mailchimp error: " + error))
+                                            Mono.error(new ResponseStatusException(
+                                                    HttpStatus.BAD_GATEWAY,
+                                                    "Mailchimp API error: " + error
+                                            ))
                                     )
                             )
                             .bodyToMono(MailchimpAudienceList.class)

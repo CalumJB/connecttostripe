@@ -183,4 +183,39 @@ public class MailchimpOAuthController {
         headers.setLocation(URI.create(errorUrl));
         return Mono.just(new ResponseEntity<>(headers, HttpStatus.FOUND));
     }
+
+    @DeleteMapping("/disconnect")
+    public Mono<ResponseEntity<Map<String, String>>> disconnectMailchimp(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            boolean deleted = mailchimpUserRepository.deleteByStripeAccountId(accountId) > 0;
+            
+            if (!deleted) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Mailchimp connection not found for accountId: " + accountId
+                );
+            }
+
+            Map<String, String> response = Map.of(
+                    "message", "Mailchimp account disconnected successfully",
+                    "account_id", accountId
+            );
+            return ResponseEntity.ok(response);
+        });
+    }
 }
