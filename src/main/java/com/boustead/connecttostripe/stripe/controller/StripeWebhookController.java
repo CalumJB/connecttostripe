@@ -1,5 +1,6 @@
 package com.boustead.connecttostripe.stripe.controller;
 
+import com.boustead.connecttostripe.billing.SubscriptionValidationService;
 import com.boustead.connecttostripe.mailchimp.MailchimpUser;
 import com.boustead.connecttostripe.mailchimp.MailchimpUserRepository;
 import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
@@ -40,6 +41,9 @@ public class StripeWebhookController {
     @Autowired
     StripeWebhookCounterService stripeWebhookCounterService;
 
+    @Autowired
+    SubscriptionValidationService subscriptionValidationService;
+
     @Value("${environment}")
     private String environment;
 
@@ -73,6 +77,14 @@ public class StripeWebhookController {
                 account = "acct_1RvwZk7l0o2aIIbm";
             }
 
+        }
+
+        // Check if account has valid subscription before processing sync events
+        if (!subscriptionValidationService.canPerformSync(account)) {
+            System.out.println("Account " + account + " cannot perform sync. Reason:");
+            System.out.println("  Status: " + subscriptionValidationService.getSubscriptionStatusMessage(account));
+            System.out.println("  Usage: " + subscriptionValidationService.getUsageSummary(account));
+            return Mono.just("OK");
         }
 
         // check that account is setup with mailchimp token
