@@ -18,7 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class BillingController {
 
     @Value("${stripe.billing.secret:}")
-    private String stripeSecretKey;
+    private String stripeBillingSecret;
+
+    @Value("${mailchimp.stripe.redirect-uri}")
+    private String mailchimpRedirectUrl;
 
     @Autowired
     private StripeUserRepository stripeUserRepository;
@@ -43,7 +46,7 @@ public class BillingController {
         }
 
         try {
-            Stripe.apiKey = stripeSecretKey;
+            Stripe.apiKey = stripeBillingSecret;
 
             SessionCreateParams.Builder sessionBuilder = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
@@ -51,10 +54,10 @@ public class BillingController {
                             .setPrice(request.getPriceId())
                             .setQuantity(1L)
                             .build())
-                    .setSuccessUrl(request.getSuccessUrl() != null ? request.getSuccessUrl() : 
-                        "https://your-domain.com/success?session_id={CHECKOUT_SESSION_ID}")
-                    .setCancelUrl(request.getCancelUrl() != null ? request.getCancelUrl() : 
-                        "https://your-domain.com/cancel")
+                    .setSuccessUrl(request.getSuccessUrl() != null ? request.getSuccessUrl() :
+                            mailchimpRedirectUrl)
+                    .setCancelUrl(request.getCancelUrl() != null ? request.getCancelUrl() :
+                            mailchimpRedirectUrl)
                     .putMetadata("stripe_account_id", request.getStripeAccountId())
                     .setSubscriptionData(SessionCreateParams.SubscriptionData.builder()
                             .setTrialPeriodDays(14L)

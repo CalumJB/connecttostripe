@@ -21,19 +21,22 @@ public class PlanConfigurationService {
         planConfigurations.put("FREE", new PlanConfiguration("FREE", 20, "Free"));
         
         // STARTER Plan - Map your actual price ID
-//        price_1S0GTDF8MQhGKD54Eak9NxtO, price_1S0GTDF8MQhGKD54insZHYGe
-        planConfigurations.put("price_1S0GTDF8MQhGKD54Eak9NxtO", new PlanConfiguration("STARTER", 100, "Starter"));
-        planConfigurations.put("price_1S0GTDF8MQhGKD54insZHYGe", new PlanConfiguration("STARTER", 100, "Starter"));
+        //MONTHLY
+        planConfigurations.put("price_1S0cJdF8MQhGKD54ctMhQpHi", new PlanConfiguration("STARTER", 100, "Starter"));
+        //YEARLY
+        planConfigurations.put("price_1S0cJdF8MQhGKD54s6EoTxbc", new PlanConfiguration("STARTER", 100, "Starter"));
         
         // STANDARD Plan - Map your actual price ID
-        // price_1S0GTDF8MQhGKD545JYTikaY, price_1S0GTDF8MQhGKD54drvjawgT
-        planConfigurations.put("price_1S0GTDF8MQhGKD545JYTikaY", new PlanConfiguration("STANDARD", 1000, "Standard"));
-        planConfigurations.put("price_1S0GTDF8MQhGKD54drvjawgT", new PlanConfiguration("STANDARD", 1000, "Standard"));
+        //MONTHLY
+        planConfigurations.put("price_1S0cKDF8MQhGKD543LhbZcQc", new PlanConfiguration("STANDARD", 1000, "Standard"));
+        //YEARLY
+        planConfigurations.put("price_1S0cKjF8MQhGKD54uf2Lf9SH", new PlanConfiguration("STANDARD", 1000, "Standard"));
         
         // PRO Plan - Map your actual price ID
-        // price_1S0GTDF8MQhGKD54gC0fiaNn, price_1S0GTDF8MQhGKD54BeFYga6G
-        planConfigurations.put("price_1S0GTDF8MQhGKD54gC0fiaNn", new PlanConfiguration("PRO", 5000, "Pro"));
-        planConfigurations.put("price_1S0GTDF8MQhGKD54BeFYga6G", new PlanConfiguration("PRO", 5000, "Pro"));
+        //MONTHLY
+        planConfigurations.put("price_1S0cLSF8MQhGKD54ae8vB3tz", new PlanConfiguration("PRO", 5000, "Pro"));
+        //YEARLY
+        planConfigurations.put("price_1S0cLSF8MQhGKD542b2g6b2s", new PlanConfiguration("PRO", 5000, "Pro"));
         
         // Default plan for unknown configurations
         defaultPlan = new PlanConfiguration("UNKNOWN", 5000, "Unknown");
