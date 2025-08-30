@@ -15,6 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mailchimp")
+@CrossOrigin(origins = {"https://connectto.app"})
 public class MailchimpUserController {
 
     @Value("${stripe.signing.secret}")
@@ -22,6 +23,9 @@ public class MailchimpUserController {
 
     @Autowired
     MailchimpUserRepository mailchimpUserRepository;
+
+    @Autowired
+    private MailchimpOnboardingService onboardingService;
 
 @PostMapping("user/checkout/audiences")
     public Mono<ResponseEntity<MailchimpAudienceList>> getMailchimpUserAudiences(
@@ -189,4 +193,60 @@ public class MailchimpUserController {
                     ));
         });
     }
+
+
+    @PostMapping("/onboarding/complete")
+    public Mono<ResponseEntity<Map<String, Object>>> completeOnboarding(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            // Verify Mailchimp user exists
+            if (!mailchimpUserRepository.findByStripeAccountId(accountId).isPresent()) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Mailchimp user not found for accountId: " + accountId
+                );
+            }
+            
+            onboardingService.completeOnboarding(accountId, userId);
+            return ResponseEntity.ok(Map.of("completed", true, "message", "Onboarding completed successfully"));
+        });
+    }
+
+    @PostMapping("/onboarding/is-completed")
+    public Mono<ResponseEntity<Map<String, Boolean>>> getOnboardingStatus(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            boolean completed = onboardingService.isOnboardingCompleted(accountId);
+            return ResponseEntity.ok(Map.of("completed", completed));
+        });
+    }
+
 }

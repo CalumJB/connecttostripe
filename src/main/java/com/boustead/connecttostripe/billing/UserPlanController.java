@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -163,6 +164,77 @@ public class UserPlanController {
 
         public void setUrl(String url) {
             this.url = url;
+        }
+    }
+
+    @PostMapping("/usage")
+    public Mono<ResponseEntity<UsageResponse>> getUserUsage(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            StripeWebhookCounterService.UsageData usageData = counterService.getLast12MonthsUsage(accountId);
+            return ResponseEntity.ok(new UsageResponse(usageData));
+        });
+    }
+
+    public static class UsageResponse {
+        private final List<MonthlyUsageInfo> monthlyBreakdown;
+        private final int totalSessions;
+
+        public UsageResponse(StripeWebhookCounterService.UsageData usageData) {
+            this.monthlyBreakdown = usageData.getMonthlyBreakdown().stream()
+                    .map(monthly -> new MonthlyUsageInfo(
+                        monthly.getYearMonth(),
+                        monthly.getMonthName(),
+                        monthly.getSessionCount()
+                    ))
+                    .collect(java.util.stream.Collectors.toList());
+            this.totalSessions = usageData.getTotalSessions();
+        }
+
+        public List<MonthlyUsageInfo> getMonthlyBreakdown() {
+            return monthlyBreakdown;
+        }
+
+        public int getTotalSessions() {
+            return totalSessions;
+        }
+    }
+
+    public static class MonthlyUsageInfo {
+        private final String yearMonth;
+        private final String monthName;
+        private final int sessionCount;
+
+        public MonthlyUsageInfo(String yearMonth, String monthName, int sessionCount) {
+            this.yearMonth = yearMonth;
+            this.monthName = monthName;
+            this.sessionCount = sessionCount;
+        }
+
+        public String getYearMonth() {
+            return yearMonth;
+        }
+
+        public String getMonthName() {
+            return monthName;
+        }
+
+        public int getSessionCount() {
+            return sessionCount;
         }
     }
 }
