@@ -24,6 +24,9 @@ public class MailchimpUser {
     @Column(name = "selected_audience_id")
     private String selectedAudienceId;
 
+    @Column(name = "audience_status")
+    private String audienceStatus;
+
     // Getters and setters
 
     public Long getId() {
@@ -60,5 +63,13 @@ public class MailchimpUser {
 
     public void setSelectedAudienceId(String selectedAudienceId) {
         this.selectedAudienceId = selectedAudienceId;
+    }
+
+    public String getAudienceStatus() {
+        return audienceStatus;
+    }
+
+    public void setAudienceStatus(String audienceStatus) {
+        this.audienceStatus = audienceStatus;
     }
 }

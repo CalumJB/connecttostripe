@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.util.Base64;
 import java.util.Map;
 
 @RestController
@@ -27,7 +28,7 @@ public class MailchimpUserController {
     @Autowired
     private MailchimpOnboardingService onboardingService;
 
-@PostMapping("user/checkout/audiences")
+@PostMapping("user/audiences")
     public Mono<ResponseEntity<MailchimpAudienceList>> getMailchimpUserAudiences(
             @RequestHeader(name = "Stripe-Signature") String signature,
             @RequestBody Map<String, String> body) {
@@ -91,7 +92,7 @@ public class MailchimpUserController {
                 });
     }
 
-    @PutMapping("user/checkout/audience/select")
+    @PostMapping("user/audience/post")
     public Mono<ResponseEntity<String>> selectMailchimpAudience(
             @RequestHeader(name = "Stripe-Signature") String signature,
             @RequestBody Map<String, String> body) {
@@ -130,7 +131,7 @@ public class MailchimpUserController {
         });
     }
 
-    @DeleteMapping("user/checkout/audience/select")
+    @DeleteMapping("user/audience/delete")
     public Mono<ResponseEntity<String>> clearMailchimpAudience(
             @RequestHeader(name = "Stripe-Signature") String signature,
             @RequestBody Map<String, String> body) {
@@ -161,7 +162,7 @@ public class MailchimpUserController {
         });
     }
 
-    @PostMapping("user/checkout/audience/selected")
+    @PostMapping("user/audience/get")
     public Mono<ResponseEntity<Map<String, String>>> getSelectedAudience(
             @RequestHeader(name = "Stripe-Signature") String signature,
             @RequestBody Map<String, String> body) {
@@ -194,6 +195,88 @@ public class MailchimpUserController {
         });
     }
 
+    @PostMapping("user/status/post")
+    public Mono<ResponseEntity<Map<String, String>>> setAudienceStatus(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+        String audienceStatus = body.get("audience_status");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        if (audienceStatus == null || audienceStatus.trim().isEmpty()) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "audience_status is required"
+            ));
+        }
+
+        if (!audienceStatus.equals("pending") && !audienceStatus.equals("transactional") && !audienceStatus.equals("subscribed")) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "audience_status must be one of: pending, transactional, subscribed"
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            return mailchimpUserRepository.findByStripeAccountId(accountId)
+                    .map(user -> {
+                        user.setAudienceStatus(audienceStatus);
+                        mailchimpUserRepository.save(user);
+                        Map<String, String> response = Map.of(
+                                "message", "Audience status set successfully",
+                                "audience_status", audienceStatus
+                        );
+                        return ResponseEntity.ok(response);
+                    })
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Mailchimp user not found for accountId: " + accountId
+                    ));
+        });
+    }
+
+    @PostMapping("user/status/get")
+    public Mono<ResponseEntity<Map<String, String>>> getAudienceStatus(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> {
+            return mailchimpUserRepository.findByStripeAccountId(accountId)
+                    .map(user -> {
+                        String audienceStatus = user.getAudienceStatus();
+                        Map<String, String> response = Map.of(
+                                "audience_status", audienceStatus != null ? audienceStatus : ""
+                        );
+                        return ResponseEntity.ok(response);
+                    })
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Mailchimp user not found for accountId: " + accountId
+                    ));
+        });
+    }
 
     @PostMapping("/onboarding/complete")
     public Mono<ResponseEntity<Map<String, Object>>> completeOnboarding(
@@ -220,7 +303,7 @@ public class MailchimpUserController {
                         "Mailchimp user not found for accountId: " + accountId
                 );
             }
-            
+
             onboardingService.completeOnboarding(accountId, userId);
             return ResponseEntity.ok(Map.of("completed", true, "message", "Onboarding completed successfully"));
         });
@@ -247,6 +330,152 @@ public class MailchimpUserController {
             boolean completed = onboardingService.isOnboardingCompleted(accountId);
             return ResponseEntity.ok(Map.of("completed", completed));
         });
+    }
+
+    @PostMapping("/contacts/pending")
+    public Mono<ResponseEntity<Map<String, Object>>> getPendingContacts(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+
+        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+            ));
+        }
+
+        return Mono.fromCallable(() -> mailchimpUserRepository.findByStripeAccountId(accountId))
+                .flatMap(optionalUser -> {
+                    if (optionalUser.isEmpty()) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Mailchimp user not found for accountId: " + accountId
+                        ));
+                    }
+
+                    MailchimpUser user = optionalUser.get();
+                    String selectedAudienceId = user.getSelectedAudienceId();
+                    
+                    if (selectedAudienceId == null) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "No audience selected for accountId: " + accountId
+                        ));
+                    }
+
+                    String token = user.getToken();
+                    String serverPrefix = user.getServerPrefix();
+
+                    WebClient mailchimpClient = WebClient.builder()
+                            .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
+                            .defaultHeader("Authorization", "OAuth " + token)
+                            .build();
+
+                    return mailchimpClient
+                            .get()
+                            .uri("/lists/{list_id}/members?status=pending", selectedAudienceId)
+                            .retrieve()
+                            .onStatus(status -> status.value() == 401, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.UNAUTHORIZED,
+                                            "Mailchimp authorization failed. Please reconnect your Mailchimp account."
+                                    ))
+                            )
+                            .onStatus(status -> status.value() == 403, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.FORBIDDEN,
+                                            "Mailchimp access denied. Please check your account permissions."
+                                    ))
+                            )
+                            .onStatus(HttpStatusCode::isError, response ->
+                                    response.bodyToMono(String.class).flatMap(error ->
+                                            Mono.error(new ResponseStatusException(
+                                                    HttpStatus.BAD_GATEWAY,
+                                                    "Mailchimp API error: " + error
+                                            ))
+                                    )
+                            )
+                            .bodyToMono(Map.class)
+                            .map(ResponseEntity::ok);
+                });
+    }
+
+    @PostMapping("user/get-pending-contacts")
+    public Mono<ResponseEntity<Map<String, Object>>> getPendingContactsMailchimp(
+            @RequestHeader(name = "Stripe-Signature") String signature,
+            @RequestBody Map<String, String> body) {
+
+        String userId = body.get("user_id");
+        String accountId = body.get("account_id");
+
+//        String payload = String.format("{\"user_id\":\"%s\",\"account_id\":\"%s\"}", userId, accountId);
+//
+//        if (!StripeSignatureVerifier.isValid(signature, payload, stripeSecret)) {
+//            return Mono.error(new ResponseStatusException(
+//                    HttpStatus.UNAUTHORIZED,
+//                    "Invalid signature for userId: " + userId + ", accountId: " + accountId
+//            ));
+//        }
+
+        return Mono.fromCallable(() -> mailchimpUserRepository.findByStripeAccountId(accountId))
+                .flatMap(optionalUser -> {
+                    if (optionalUser.isEmpty()) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Mailchimp user not found for accountId: " + accountId
+                        ));
+                    }
+
+                    MailchimpUser user = optionalUser.get();
+                    String selectedAudienceId = user.getSelectedAudienceId();
+                    
+                    if (selectedAudienceId == null) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "No audience selected for accountId: " + accountId
+                        ));
+                    }
+
+                    String token = user.getToken();
+                    String serverPrefix = user.getServerPrefix();
+
+                    WebClient mailchimpClient = WebClient.builder()
+                            .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
+                            .defaultHeader("Authorization", "OAuth " + token)
+                            .build();
+
+                    return mailchimpClient
+                            .get()
+                            .uri("/lists/{list_id}/members?count=100", selectedAudienceId)
+                            .retrieve()
+                            .onStatus(status -> status.value() == 401, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.UNAUTHORIZED,
+                                            "Mailchimp authorization failed. Please reconnect your Mailchimp account."
+                                    ))
+                            )
+                            .onStatus(status -> status.value() == 403, response ->
+                                    Mono.error(new ResponseStatusException(
+                                            HttpStatus.FORBIDDEN,
+                                            "Mailchimp access denied. Please check your account permissions."
+                                    ))
+                            )
+                            .onStatus(HttpStatusCode::isError, response ->
+                                    response.bodyToMono(String.class).flatMap(error ->
+                                            Mono.error(new ResponseStatusException(
+                                                    HttpStatus.BAD_GATEWAY,
+                                                    "Mailchimp API error: " + error
+                                            ))
+                                    )
+                            )
+                            .bodyToMono(Map.class)
+                            .map(ResponseEntity::ok);
+                });
     }
 
 }

@@ -55,6 +55,31 @@ public class SubscriptionService {
         }
     }
 
+    @Transactional
+    public void cancelAllSubscriptionsForAccount(String stripeAccountId) {
+        List<Subscription> subscriptions = subscriptionRepository.findActiveSubscriptionsByAccountId(stripeAccountId);
+        
+        if (!subscriptions.isEmpty()) {
+            for (Subscription subscription : subscriptions) {
+                try {
+                    // Cancel the subscription with Stripe API
+                    com.stripe.model.Subscription stripeSubscription = com.stripe.model.Subscription.retrieve(
+                            subscription.getStripeSubscriptionId());
+                    stripeSubscription.cancel();
+                    
+                    logger.info("Canceled Stripe subscription: {} for account: {}", 
+                               subscription.getStripeSubscriptionId(), stripeAccountId);
+                } catch (Exception e) {
+                    logger.error("Failed to cancel Stripe subscription: {} for account: {}. Error: {}", 
+                                subscription.getStripeSubscriptionId(), stripeAccountId, e.getMessage());
+                }
+            }
+            logger.info("Initiated cancellation for {} subscriptions for account: {}", subscriptions.size(), stripeAccountId);
+        } else {
+            logger.info("No active subscriptions found to cancel for account: {}", stripeAccountId);
+        }
+    }
+
     public boolean hasActiveSubscription(String stripeAccountId) {
         return subscriptionRepository.hasActiveSubscription(stripeAccountId);
     }

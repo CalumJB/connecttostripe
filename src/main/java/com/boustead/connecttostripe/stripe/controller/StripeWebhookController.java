@@ -1,6 +1,7 @@
 package com.boustead.connecttostripe.stripe.controller;
 
 import com.boustead.connecttostripe.billing.SubscriptionValidationService;
+import com.boustead.connecttostripe.billing.SubscriptionService;
 import com.boustead.connecttostripe.mailchimp.MailchimpUser;
 import com.boustead.connecttostripe.mailchimp.MailchimpUserRepository;
 import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
@@ -43,6 +44,9 @@ public class StripeWebhookController {
 
     @Autowired
     SubscriptionValidationService subscriptionValidationService;
+
+    @Autowired
+    SubscriptionService subscriptionService;
 
     @Value("${environment}")
     private String environment;
@@ -100,6 +104,11 @@ public class StripeWebhookController {
             return Mono.just("OK");
         }
 
+        if(mailchimpUser.getAudienceStatus() == null || mailchimpUser.getAudienceStatus().isEmpty()) {
+            System.out.println("Received event but no permissions selected for account: " + account);
+            return Mono.just("OK");
+        }
+
         // check that accounts have been set
 
         StripeObject stripeObject = null;
@@ -135,9 +144,13 @@ public class StripeWebhookController {
             case "account.application.deauthorized" -> {
                 System.out.println("Account " + account + " deauthorized the application");
                 
-                // Disconnect user from Mailchimp when they deauthorize the app
+                // Disconnect user from Mailchimp and cancel subscriptions when they deauthorize the app
                 String finalAccount = account;
                 return Mono.fromCallable(() -> {
+                    // Cancel all subscriptions for the account
+                    subscriptionService.cancelAllSubscriptionsForAccount(finalAccount);
+                    
+                    // Delete Mailchimp connection
                     int deletedRows = mailchimpUserRepository.deleteByStripeAccountId(finalAccount);
                     if (deletedRows > 0) {
                         System.out.println("Disconnected Mailchimp account for deauthorized Stripe account: " + finalAccount);
@@ -168,7 +181,7 @@ public class StripeWebhookController {
 
         Map<String, Object> memberData = new java.util.HashMap<>();
         memberData.put("email_address", customerEmail);
-        memberData.put("status", "subscribed");
+        memberData.put("status", mailchimpUser.getAudienceStatus());
         memberData.put("tags", new String[]{"stripe"});
         
         if (customerName != null && !customerName.trim().isEmpty()) {
