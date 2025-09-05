@@ -11,7 +11,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
-import java.util.Base64;
 import java.util.Map;
 
 @RestController
@@ -89,6 +88,7 @@ public class MailchimpUserController {
                                     )
                             )
                             .bodyToMono(MailchimpAudienceList.class)
+                            .retryWhen(RetryHelper.readOperationRetry())
                             .map(ResponseEntity::ok);
                 });
     }
@@ -401,6 +401,7 @@ public class MailchimpUserController {
                                     )
                             )
                             .bodyToMono(Map.class)
+                            .retryWhen(RetryHelper.readOperationRetry())
                             .map(ResponseEntity::ok);
                 });
     }
@@ -473,6 +474,7 @@ public class MailchimpUserController {
                                     )
                             )
                             .bodyToMono(Map.class)
+                            .retryWhen(RetryHelper.readOperationRetry())
                             .map(ResponseEntity::ok);
                 });
     }

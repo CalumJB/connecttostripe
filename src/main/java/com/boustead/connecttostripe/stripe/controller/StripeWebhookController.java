@@ -4,13 +4,11 @@ import com.boustead.connecttostripe.billing.SubscriptionValidationService;
 import com.boustead.connecttostripe.billing.SubscriptionService;
 import com.boustead.connecttostripe.mailchimp.MailchimpUser;
 import com.boustead.connecttostripe.mailchimp.MailchimpUserRepository;
+import com.boustead.connecttostripe.mailchimp.RetryHelper;
 import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
-import com.boustead.connecttostripe.stripe.service.StripeSignatureVerifier;
 import com.google.gson.JsonSyntaxException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
-import com.stripe.model.PaymentIntent;
-import com.stripe.model.PaymentMethod;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
@@ -19,11 +17,9 @@ import com.stripe.model.StripeObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -222,6 +218,7 @@ public class StripeWebhookController {
                          response -> response.bodyToMono(String.class)
                                  .flatMap(error -> Mono.error(new RuntimeException("Mailchimp API error: " + error))))
                 .bodyToMono(String.class)
+                .retryWhen(RetryHelper.webhookOperationRetry())
                 .then();
     }
 }
