@@ -58,10 +58,8 @@ public class MailchimpOAuthController {
     @Autowired
     private MailchimpUserRepository mailchimpUserRepository;
 
-    private final WebClient webClient = WebClient.builder()
-            .baseUrl("https://login.mailchimp.com")
-            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-            .build();
+    @Autowired
+    private WebClient mailchimpOAuthClient;
 
     @GetMapping("/callback")
     public Mono<ResponseEntity<Void>> handleCallback(
@@ -122,9 +120,8 @@ public class MailchimpOAuthController {
         formData.add("redirect_uri", redirectUri);
         formData.add("code", code);
 
-        return webClient.post()
+        return mailchimpOAuthClient.post()
                 .uri("/oauth2/token")
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
                 .bodyValue(formData)
                 .retrieve()
                 .onStatus(status -> status.isError(), response ->
@@ -137,7 +134,7 @@ public class MailchimpOAuthController {
     }
 
     private Mono<String> getMailchimpMetadata(String accessToken) {
-        return webClient.get()
+        return mailchimpOAuthClient.get()
                 .uri("/oauth2/metadata")
                 .header("Authorization", "OAuth " + accessToken)
                 .retrieve()

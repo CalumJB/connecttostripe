@@ -28,6 +28,9 @@ public class MailchimpUserController {
     @Autowired
     private MailchimpOnboardingService onboardingService;
 
+    @Autowired
+    private WebClient mailchimpApiClient;
+
 @PostMapping("user/audiences")
     public Mono<ResponseEntity<MailchimpAudienceList>> getMailchimpUserAudiences(
             @RequestHeader(name = "Stripe-Signature") String signature,
@@ -58,14 +61,12 @@ public class MailchimpUserController {
                     String token = user.getToken();
                     String serverPrefix = user.getServerPrefix();
 
-                    WebClient mailchimpClient = WebClient.builder()
-                            .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
-                            .defaultHeader("Authorization", "OAuth " + token)
-                            .build();
+                    // Use singleton WebClient with dynamic URL and per-request authorization
 
-                    return mailchimpClient
+                    return mailchimpApiClient
                             .get()
-                            .uri("/lists")
+                            .uri("https://{server}.api.mailchimp.com/3.0/lists", serverPrefix)
+                            .header("Authorization", "OAuth " + token)
                             .retrieve()
                             .onStatus(status -> status.value() == 401, response ->
                                     Mono.error(new ResponseStatusException(
@@ -371,14 +372,13 @@ public class MailchimpUserController {
                     String token = user.getToken();
                     String serverPrefix = user.getServerPrefix();
 
-                    WebClient mailchimpClient = WebClient.builder()
-                            .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
-                            .defaultHeader("Authorization", "OAuth " + token)
-                            .build();
+                    // Use singleton WebClient with dynamic URL and per-request authorization
 
-                    return mailchimpClient
+                    return mailchimpApiClient
                             .get()
-                            .uri("/lists/{list_id}/members?status=pending", selectedAudienceId)
+                            .uri("https://{server}.api.mailchimp.com/3.0/lists/{list_id}/members?status=pending", 
+                                 serverPrefix, selectedAudienceId)
+                            .header("Authorization", "OAuth " + token)
                             .retrieve()
                             .onStatus(status -> status.value() == 401, response ->
                                     Mono.error(new ResponseStatusException(
@@ -444,14 +444,13 @@ public class MailchimpUserController {
                     String token = user.getToken();
                     String serverPrefix = user.getServerPrefix();
 
-                    WebClient mailchimpClient = WebClient.builder()
-                            .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
-                            .defaultHeader("Authorization", "OAuth " + token)
-                            .build();
+                    // Use singleton WebClient with dynamic URL and per-request authorization
 
-                    return mailchimpClient
+                    return mailchimpApiClient
                             .get()
-                            .uri("/lists/{list_id}/members?count=100", selectedAudienceId)
+                            .uri("https://{server}.api.mailchimp.com/3.0/lists/{list_id}/members?count=100", 
+                                 serverPrefix, selectedAudienceId)
+                            .header("Authorization", "OAuth " + token)
                             .retrieve()
                             .onStatus(status -> status.value() == 401, response ->
                                     Mono.error(new ResponseStatusException(

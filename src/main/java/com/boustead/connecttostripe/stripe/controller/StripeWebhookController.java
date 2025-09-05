@@ -48,6 +48,9 @@ public class StripeWebhookController {
     @Autowired
     SubscriptionService subscriptionService;
 
+    @Autowired
+    private WebClient mailchimpApiClient;
+
     @Value("${environment}")
     private String environment;
 
@@ -173,11 +176,7 @@ public class StripeWebhookController {
         String serverPrefix = mailchimpUser.getServerPrefix();
         String audienceId = mailchimpUser.getSelectedAudienceId();
 
-        WebClient mailchimpClient = WebClient.builder()
-                .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
-                .defaultHeader("Authorization", "OAuth " + token)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+        // Use singleton WebClient with dynamic URL and per-request authorization
 
         Map<String, Object> memberData = new java.util.HashMap<>();
         memberData.put("email_address", customerEmail);
@@ -212,9 +211,11 @@ public class StripeWebhookController {
             return Mono.error(new RuntimeException("MD5 algorithm not available", e));
         }
 
-        return mailchimpClient
+        return mailchimpApiClient
                 .put()
-                .uri("/lists/{list_id}/members/{subscriber_hash}", audienceId, subscriberHash)
+                .uri("https://{server}.api.mailchimp.com/3.0/lists/{list_id}/members/{subscriber_hash}", 
+                     serverPrefix, audienceId, subscriberHash)
+                .header("Authorization", "OAuth " + token)
                 .bodyValue(memberData)
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), 
