@@ -26,6 +26,12 @@ public class Subscription {
     @Column(name = "plan_name")
     private String planName;
 
+    @Column(name = "customer_email")
+    private String customerEmail;
+
+    @Column(name = "customer_name")
+    private String customerName;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -89,6 +95,22 @@ public class Subscription {
 
     public void setPlanName(String planName) {
         this.planName = planName;
+    }
+
+    public String getCustomerEmail() {
+        return customerEmail;
+    }
+
+    public void setCustomerEmail(String customerEmail) {
+        this.customerEmail = customerEmail;
+    }
+
+    public String getCustomerName() {
+        return customerName;
+    }
+
+    public void setCustomerName(String customerName) {
+        this.customerName = customerName;
     }
 
     public LocalDateTime getCreatedAt() {

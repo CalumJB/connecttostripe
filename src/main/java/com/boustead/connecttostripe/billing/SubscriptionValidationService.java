@@ -45,8 +45,7 @@ public class SubscriptionValidationService {
         Optional<Subscription> subscription = getActiveSubscription(stripeAccountId);
         
         if (subscription.isEmpty()) {
-            // No subscription - allow up to 20 syncs per month
-            return isWithinFreeTierLimits(stripeAccountId);
+            return false;
         }
         
         Subscription sub = subscription.get();
@@ -55,7 +54,7 @@ public class SubscriptionValidationService {
         // First check if subscription is active
         if (!"active".equals(status) && !"trialing".equals(status)) {
             // Inactive subscription - fall back to free tier
-            return isWithinFreeTierLimits(stripeAccountId);
+            return false;
         }
         
         // Then check usage limits for paid plan
@@ -100,9 +99,7 @@ public class SubscriptionValidationService {
         Integer currentUsage = counterService.getCurrentMonthCheckoutSessionCount(stripeAccountId);
         
         if (subscription.isEmpty()) {
-            PlanConfiguration freePlan = planConfigurationService.getPlanByName("FREE");
-            return String.format("Free tier: %d/%d syncs used this month. Upgrade for more syncs.", 
-                currentUsage, freePlan.getMonthlySyncLimit());
+            return String.format("Free tier.");
         }
         
         Subscription sub = subscription.get();

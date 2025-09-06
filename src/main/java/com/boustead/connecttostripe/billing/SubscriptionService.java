@@ -1,10 +1,14 @@
 package com.boustead.connecttostripe.billing;
 
 import com.boustead.connecttostripe.exception.GlobalExceptionHandler;
+import com.stripe.Stripe;
+import com.stripe.model.Customer;
 import com.stripe.model.SubscriptionItem;
+import com.stripe.net.RequestOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +29,9 @@ public class SubscriptionService {
     @Autowired
     private PlanConfigurationService planConfigurationService;
 
+    @Value("${stripe.billing.secret:}")
+    private String stripeBillingSecret;
+
     @Transactional
     public Subscription createOrUpdateSubscription(com.stripe.model.Subscription stripeSubscription, String stripeAccountId) {
         Optional<Subscription> existingSubscription = subscriptionRepository
@@ -36,6 +43,52 @@ public class SubscriptionService {
         subscription.setStripeCustomerId(stripeSubscription.getCustomer());
         subscription.setStripeAccountId(stripeAccountId);
         subscription.setStatus(stripeSubscription.getStatus());
+        
+        // Fetch customer email and name from Stripe API if not already set
+        if ((subscription.getCustomerEmail() == null || subscription.getCustomerName() == null) && stripeSubscription.getCustomer() != null) {
+            try {
+//                Stripe.apiKey = stripeBillingSecret;
+                Customer customer = Customer.retrieve(stripeSubscription.getCustomer(),
+                        RequestOptions.builder()
+                                .setApiKey(stripeBillingSecret)
+                                .build());
+                if (subscription.getCustomerEmail() == null) {
+                    subscription.setCustomerEmail(customer.getEmail());
+                }
+                if (subscription.getCustomerName() == null) {
+                    subscription.setCustomerName(customer.getName());
+                }
+                logger.info("Retrieved customer details - email: {}, name: {} for subscription: {}", 
+                           customer.getEmail(), customer.getName(), stripeSubscription.getId());
+            } catch (Exception e) {
+                logger.warn("Failed to retrieve customer details for subscription {}: {}", stripeSubscription.getId(), e.getMessage());
+            }
+        }
+        
+        // Extract plan information from subscription items
+        extractAndSetPlanDetails(stripeSubscription, subscription);
+
+        return subscriptionRepository.save(subscription);
+    }
+
+    @Transactional
+    public Subscription createOrUpdateSubscription(com.stripe.model.Subscription stripeSubscription, String stripeAccountId, String customerEmail) {
+        return createOrUpdateSubscription(stripeSubscription, stripeAccountId, customerEmail, null);
+    }
+    
+    @Transactional
+    public Subscription createOrUpdateSubscription(com.stripe.model.Subscription stripeSubscription, String stripeAccountId, String customerEmail, String customerName) {
+        Optional<Subscription> existingSubscription = subscriptionRepository
+                .findByStripeSubscriptionId(stripeSubscription.getId());
+
+        Subscription subscription = existingSubscription.orElse(new Subscription());
+        
+        subscription.setStripeSubscriptionId(stripeSubscription.getId());
+        subscription.setStripeCustomerId(stripeSubscription.getCustomer());
+        subscription.setStripeAccountId(stripeAccountId);
+        subscription.setStatus(stripeSubscription.getStatus());
+        subscription.setCustomerEmail(customerEmail);
+        subscription.setCustomerName(customerName);
         
         // Extract plan information from subscription items
         extractAndSetPlanDetails(stripeSubscription, subscription);

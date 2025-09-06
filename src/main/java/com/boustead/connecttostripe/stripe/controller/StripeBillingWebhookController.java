@@ -75,7 +75,6 @@ public class StripeBillingWebhookController {
                     if (accountId != null) {
                         subscriptionService.createOrUpdateSubscription(subscription, accountId);
                         System.out.println("Stored subscription " + subscription.getId() + " for account: " + accountId);
-                        System.out.println("Content: " + subscription.toJson());
                     } else {
                         System.err.println("Could not determine account ID for subscription: " + subscription.getId());
                     }

@@ -5,6 +5,7 @@ import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.billingportal.Session;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.billingportal.SessionCreateParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,16 +64,25 @@ public class UserPlanController {
             
             if (subscription.isEmpty()) {
                 // No active subscription - use free tier configuration
-                Integer currentUsage = counterService.getCurrentMonthCheckoutSessionCount(accountId);
-                PlanConfiguration freePlan = planConfigurationService.getPlanByName("FREE");
-                
+//                Integer currentUsage = counterService.getCurrentMonthCheckoutSessionCount(accountId);
+//                PlanConfiguration freePlan = planConfigurationService.getPlanByName("FREE");
+//
+//                return ResponseEntity.ok(new UserPlanInfoResponse(
+//                    "FREE",
+//                    freePlan.getDisplayName(),
+//                    freePlan.getMonthlySyncLimit(),
+//                    currentUsage,
+//                    "active"
+//                ));
+
                 return ResponseEntity.ok(new UserPlanInfoResponse(
-                    "FREE", 
-                    freePlan.getDisplayName(), 
-                    freePlan.getMonthlySyncLimit(), 
-                    currentUsage, 
+                    "NONE",
+                    "None",
+                    0,
+                    0,
                     "active"
                 ));
+
             }
 
             var sub = subscription.get();
@@ -131,14 +141,17 @@ public class UserPlanController {
             }
 
             try {
-                Stripe.apiKey = stripeBillingSecret;
+//                Stripe.apiKey = stripeBillingSecret;
 
                 SessionCreateParams params = SessionCreateParams.builder()
                         .setCustomer(customerId)
                         .setReturnUrl(mailchimpRedirectUrl)
                         .build();
 
-                Session portalSession = Session.create(params);
+                Session portalSession = Session.create(params,
+                        RequestOptions.builder()
+                                .setApiKey(stripeBillingSecret)
+                                .build());
 
                 return ResponseEntity.ok(new CustomerPortalResponse(portalSession.getUrl()));
 

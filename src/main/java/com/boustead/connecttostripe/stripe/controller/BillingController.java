@@ -4,6 +4,7 @@ import com.boustead.connecttostripe.stripe.StripeUserRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.checkout.SessionCreateParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,7 +47,7 @@ public class BillingController {
         }
 
         try {
-            Stripe.apiKey = stripeBillingSecret;
+//            Stripe.apiKey = stripeBillingSecret;
 
             SessionCreateParams.Builder sessionBuilder = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
@@ -69,7 +70,10 @@ public class BillingController {
                 sessionBuilder.setCustomerEmail(request.getCustomerEmail());
             }
 
-            Session session = Session.create(sessionBuilder.build());
+            Session session = Session.create(sessionBuilder.build(),
+                    RequestOptions.builder()
+                            .setApiKey(stripeBillingSecret)
+                            .build());
 
             return ResponseEntity.ok(new CheckoutSessionResponse(session.getId(), session.getUrl()));
 

@@ -18,6 +18,7 @@ public class PlanConfigurationService {
         // Configure your actual Stripe price IDs to plan mappings
         
         // FREE Plan - No price ID, for users without active subscriptions
+        // FREE TIER NOT CURRENTLY ACTIVE
         planConfigurations.put("FREE", new PlanConfiguration("FREE", 20, "Free"));
         
         // STARTER Plan - Map your actual price ID

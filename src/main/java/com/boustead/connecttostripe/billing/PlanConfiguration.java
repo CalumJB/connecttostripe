@@ -30,7 +30,7 @@ public class PlanConfiguration {
     }
 
     public boolean canPerformSync(int currentUsage) {
-        return unlimited || currentUsage < monthlySyncLimit;
+        return unlimited || currentUsage < monthlySyncLimit + 250; //ToDo: Will remove this leniency when better processes in place
     }
 
     public String getLimitMessage() {
