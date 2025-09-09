@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 import java.util.Map;
 import java.util.Optional;
 
@@ -32,7 +33,7 @@ public class StripeController {
     private MailchimpUserRepository mailchimpUserRepository;
 
     @PostMapping("/create")
-    public ResponseEntity<CreateUserResponse> createUserIfNotExists(
+    public Mono<ResponseEntity<CreateUserResponse>> createUserIfNotExists(
             @RequestHeader("Stripe-Signature") String signature,
             @RequestBody Map<String, String> body
     ) {
@@ -42,7 +43,7 @@ public class StripeController {
 
         if (userId == null || accountId == null) {
             logger.error("Missing required fields - UserId: {}, AccountId: {}", userId, accountId);
-            throw new IllegalArgumentException("Missing required fields: user_id and account_id");
+            return Mono.error(new IllegalArgumentException("Missing required fields: user_id and account_id"));
         }
 
         String payload = "{\"user_id\":\"" + userId + "\",\"account_id\":\"" + accountId + "\"}";
@@ -53,34 +54,48 @@ public class StripeController {
         if (!valid) {
             logger.error("Invalid Stripe signature for user creation. UserId: {}, AccountId: {}, Signature: {}, Payload: {}", 
                 userId, accountId, signature, payload);
-            throw new InvalidStripeSignatureException("Invalid Stripe signature for user creation request");
+            return Mono.error(new InvalidStripeSignatureException("Invalid Stripe signature for user creation request"));
         }
 
-        Optional<StripeUser> existingUser =
-                stripeUserRepository.findByStripeUserIdAndStripeAccountId(userId, accountId);
+        return Mono.fromCallable(() -> {
+            Optional<StripeUser> existingUser =
+                    stripeUserRepository.findByStripeUserIdAndStripeAccountId(userId, accountId);
 
-        if (existingUser.isPresent()) {
-            logger.info("User already exists. UserId: {}, AccountId: {}", userId, accountId);
+            if (existingUser.isPresent()) {
+                logger.info("User already exists. UserId: {}, AccountId: {}", userId, accountId);
+                return ResponseEntity.ok(
+                        new CreateUserResponse(true, "User already exists", existingUser.get().getStripeAccountId())
+                );
+            }
+
+            StripeUser newUser = new StripeUser();
+            newUser.setStripeUserId(userId);
+            newUser.setStripeAccountId(accountId);
+            StripeUser saved = stripeUserRepository.save(newUser);
+
+            logger.info("User created successfully. UserId: {}, AccountId: {}", userId, accountId);
             return ResponseEntity.ok(
-                    new CreateUserResponse(true, "User already exists", existingUser.get().getStripeAccountId())
+                    new CreateUserResponse(true, "User created successfully", saved.getStripeAccountId())
             );
-        }
-
-        StripeUser newUser = new StripeUser();
-        newUser.setStripeUserId(userId);
-        newUser.setStripeAccountId(accountId);
-        StripeUser saved = stripeUserRepository.save(newUser);
-
-        logger.info("User created successfully. UserId: {}, AccountId: {}", userId, accountId);
-        return ResponseEntity.ok(
-                new CreateUserResponse(true, "User created successfully", saved.getStripeAccountId())
-        );
+        });
     }
 
 
 
+    @GetMapping("/cors-test")
+    public Mono<ResponseEntity<Map<String, String>>> corsTest() {
+        System.out.println("=== CORS Test Endpoint Hit ===");
+        return Mono.fromCallable(() -> {
+            Map<String, String> response = Map.of(
+                "message", "CORS is working!", 
+                "timestamp", java.time.Instant.now().toString()
+            );
+            return ResponseEntity.ok(response);
+        });
+    }
+
     @PostMapping("/account/mailchimp")
-    public ResponseEntity<MailchimpUserResponse> getMailchimpUser(
+    public Mono<ResponseEntity<MailchimpUserResponse>> getMailchimpUser(
             @RequestHeader("Stripe-Signature") String signature,
             @RequestBody Map<String, String> body
     ) {
@@ -92,18 +107,20 @@ public class StripeController {
 
         if (!valid) {
             logger.error("Invalid Stripe signature for Mailchimp user lookup. UserId: {}, AccountId: {}", userId, accountId);
-            throw new InvalidStripeSignatureException("Invalid Stripe signature for Mailchimp user lookup");
+            return Mono.error(new InvalidStripeSignatureException("Invalid Stripe signature for Mailchimp user lookup"));
         }
 
-        Optional<MailchimpUser> mailchimpUserOpt = mailchimpUserRepository.findByStripeAccountId(accountId);
+        return Mono.fromCallable(() -> {
+            Optional<MailchimpUser> mailchimpUserOpt = mailchimpUserRepository.findByStripeAccountId(accountId);
 
-        if (mailchimpUserOpt.isPresent()) {
-            logger.info("Mailchimp user found for AccountId: {}", accountId);
-            return ResponseEntity.ok(new MailchimpUserResponse(true));
-        } else {
-            logger.info("No Mailchimp user found for AccountId: {}", accountId);
-            return ResponseEntity.ok(new MailchimpUserResponse(false));
-        }
+            if (mailchimpUserOpt.isPresent()) {
+                logger.info("Mailchimp user found for AccountId: {}", accountId);
+                return ResponseEntity.ok(new MailchimpUserResponse(true));
+            } else {
+                logger.info("No Mailchimp user found for AccountId: {}", accountId);
+                return ResponseEntity.ok(new MailchimpUserResponse(false));
+            }
+        });
     }
 
 }

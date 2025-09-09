@@ -20,7 +20,11 @@ public class PlanConfigurationService {
         // FREE Plan - No price ID, for users without active subscriptions
         // FREE TIER NOT CURRENTLY ACTIVE
         planConfigurations.put("FREE", new PlanConfiguration("FREE", 20, "Free"));
-        
+
+        // TEST Plan - No card requested
+        planConfigurations.put("price_1S4HTfF7gMXUJNvvp4PdUPt6", new PlanConfiguration("TEST", 20, "Test"));
+
+
         // STARTER Plan - Map your actual price ID
         // DEMO
         //MONTHLY

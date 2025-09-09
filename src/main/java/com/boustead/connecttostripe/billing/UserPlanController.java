@@ -26,7 +26,7 @@ public class UserPlanController {
     @Value("${stripe.signing.secret}")
     private String stripeSecret;
 
-    @Value("${stripe.billing.secret:}")
+    @Value("${stripe.billing.secret}")
     private String stripeBillingSecret;
 
     @Value("${mailchimp.stripe.redirect-uri}")

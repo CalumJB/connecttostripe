@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>app.connectto</groupId>
 	<artifactId>connecttostripe</artifactId>
-	<version>1.7</version>
+	<version>1.18</version>
 	<name>connecttostripe</name>
 	<description>connect to stripe</description>
 	<url/>
@@ -41,10 +41,6 @@
 			<scope>test</scope>
 		</dependency>
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

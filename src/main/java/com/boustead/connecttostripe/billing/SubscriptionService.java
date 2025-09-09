@@ -5,6 +5,7 @@ import com.stripe.Stripe;
 import com.stripe.model.Customer;
 import com.stripe.model.SubscriptionItem;
 import com.stripe.net.RequestOptions;
+import com.stripe.param.SubscriptionCancelParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +30,7 @@ public class SubscriptionService {
     @Autowired
     private PlanConfigurationService planConfigurationService;
 
-    @Value("${stripe.billing.secret:}")
+    @Value("${stripe.billing.secret}")
     private String stripeBillingSecret;
 
     @Transactional
@@ -116,9 +117,14 @@ public class SubscriptionService {
             for (Subscription subscription : subscriptions) {
                 try {
                     // Cancel the subscription with Stripe API
+                    RequestOptions requestOptions = RequestOptions.builder()
+                            .setApiKey(stripeBillingSecret)
+                            .build();
+                    
                     com.stripe.model.Subscription stripeSubscription = com.stripe.model.Subscription.retrieve(
-                            subscription.getStripeSubscriptionId());
-                    stripeSubscription.cancel();
+                            subscription.getStripeSubscriptionId(),
+                            requestOptions);
+                    stripeSubscription.cancel(SubscriptionCancelParams.builder().build(), requestOptions);
                     
                     logger.info("Canceled Stripe subscription: {} for account: {}", 
                                subscription.getStripeSubscriptionId(), stripeAccountId);

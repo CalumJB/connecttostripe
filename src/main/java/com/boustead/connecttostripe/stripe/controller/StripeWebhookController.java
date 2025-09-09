@@ -144,6 +144,7 @@ public class StripeWebhookController {
                 System.out.println("Account " + account + " deauthorized the application");
                 
                 // Disconnect user from Mailchimp and cancel subscriptions when they deauthorize the app
+                //TODO: This might need fixing. if someone has a bravo and a mailchimp account it will delete subscription for both
                 String finalAccount = account;
                 return Mono.fromCallable(() -> {
                     // Cancel all subscriptions for the account

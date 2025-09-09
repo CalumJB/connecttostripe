@@ -15,7 +15,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mailchimp")
-@CrossOrigin(origins = {"https://connectto.app"})
 public class MailchimpUserController {
 
     @Value("${stripe.signing.secret}")
