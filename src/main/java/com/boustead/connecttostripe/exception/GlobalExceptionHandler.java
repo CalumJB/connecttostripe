@@ -87,16 +87,17 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Object> handleResponseStatus(ResponseStatusException ex) {
+    public ResponseEntity<Object> handleResponseStatus(ResponseStatusException ex, WebRequest request) {
         
-        logger.error("Response status exception: {} | Status: {}", 
-            ex.getReason(), ex.getStatusCode());
+        logger.error("Response status exception: {} | Status: {} | Request: {} | Exception details: {}", 
+            ex.getReason(), ex.getStatusCode(), request.getDescription(false), ex.getMessage());
         
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", ex.getStatusCode().value());
         body.put("error", ex.getStatusCode().toString());
         body.put("message", ex.getReason());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
         
         return new ResponseEntity<>(body, ex.getStatusCode());
     }

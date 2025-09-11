@@ -55,20 +55,14 @@ public class BillingController {
                                 .setPrice(request.getPriceId())
                                 .setQuantity(1L)
                                 .build())
-                        .setSuccessUrl(request.getSuccessUrl() != null ? request.getSuccessUrl() :
-                                mailchimpRedirectUrl)
-                        .setCancelUrl(request.getCancelUrl() != null ? request.getCancelUrl() :
-                                mailchimpRedirectUrl)
+                        .setSuccessUrl(request.getSuccessUrl())
+                        .setCancelUrl(request.getCancelUrl())
                         .putMetadata("stripe_account_id", request.getStripeAccountId())
                         .setSubscriptionData(SessionCreateParams.SubscriptionData.builder()
-                                .setTrialPeriodDays(14L)
+                                .setTrialPeriodDays(30L)
                                 .putMetadata("stripe_account_id", request.getStripeAccountId())
-                                .build());
-
-                // For testing price, make payment method collection optional
-                if ("price_1S4HTfF7gMXUJNvvp4PdUPt6".equals(request.getPriceId())) {
-                    sessionBuilder.setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.IF_REQUIRED);
-                }
+                                .build())
+                        .setPaymentMethodCollection(SessionCreateParams.PaymentMethodCollection.IF_REQUIRED);
 
                 // Add customer email if provided
                 if (request.getCustomerEmail() != null && !request.getCustomerEmail().isEmpty()) {

@@ -28,14 +28,14 @@ public class PlanConfigurationService {
         // STARTER Plan - Map your actual price ID
         // DEMO
         //MONTHLY
-        planConfigurations.put("price_1S0cJdF8MQhGKD54ctMhQpHi", new PlanConfiguration("STARTER", 100, "Starter"));
+        planConfigurations.put("price_1S0cJdF8MQhGKD54ctMhQpHi", new PlanConfiguration("STARTER", 50, "Starter"));
         //YEARLY
-        planConfigurations.put("price_1S0cJdF8MQhGKD54s6EoTxbc", new PlanConfiguration("STARTER", 100, "Starter"));
+        planConfigurations.put("price_1S0cJdF8MQhGKD54s6EoTxbc", new PlanConfiguration("STARTER", 50, "Starter"));
         // PROD
         //MONTHLY
-        planConfigurations.put("price_1S3AxWF7gMXUJNvvy4u8zwQW", new PlanConfiguration("STARTER", 100, "Starter"));
+        planConfigurations.put("price_1S3AxWF7gMXUJNvvy4u8zwQW", new PlanConfiguration("STARTER", 50, "Starter"));
         //YEARLY
-        planConfigurations.put("price_1S3AxWF7gMXUJNvvks1oI86T", new PlanConfiguration("STARTER", 100, "Starter"));
+        planConfigurations.put("price_1S3AxWF7gMXUJNvvks1oI86T", new PlanConfiguration("STARTER", 50, "Starter"));
         
         // STANDARD Plan - Map your actual price ID
         //DEMO
