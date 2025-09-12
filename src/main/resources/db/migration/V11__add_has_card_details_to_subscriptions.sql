@@ -1,0 +1,1 @@
+ALTER TABLE subscriptions ADD COLUMN has_card_details BOOLEAN NOT NULL DEFAULT FALSE;
