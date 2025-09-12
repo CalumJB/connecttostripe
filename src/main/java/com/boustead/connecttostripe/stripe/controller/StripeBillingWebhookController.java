@@ -3,6 +3,7 @@ package com.boustead.connecttostripe.stripe.controller;
 import com.boustead.connecttostripe.billing.SubscriptionService;
 import com.google.gson.JsonSyntaxException;
 import com.stripe.exception.SignatureVerificationException;
+import com.stripe.model.Customer;
 import com.stripe.model.Event;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
@@ -122,6 +123,17 @@ public class StripeBillingWebhookController {
                 }
                 
                 return Mono.just("OK");
+            }
+            case "customer.updated" -> {
+                Customer customer = (Customer) stripeObject;
+                System.out.println("Customer updated: " + customer.getId());
+                
+                return Mono.fromCallable(() -> {
+                    // Update card details status for all subscriptions of this customer
+                    subscriptionService.updateCustomerCardDetailsStatus(customer.getId());
+                    System.out.println("Updated card details status for customer: " + customer.getId());
+                    return "OK";
+                });
             }
 //            case "invoice.payment_succeeded" -> {
 //                Invoice invoice = (Invoice) stripeObject;

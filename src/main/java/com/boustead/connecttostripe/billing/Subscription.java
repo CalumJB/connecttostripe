@@ -38,6 +38,9 @@ public class Subscription {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "has_card_details", nullable = false)
+    private Boolean hasCardDetails = false;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -127,6 +130,14 @@ public class Subscription {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getHasCardDetails() {
+        return hasCardDetails;
+    }
+
+    public void setHasCardDetails(Boolean hasCardDetails) {
+        this.hasCardDetails = hasCardDetails;
     }
 
     public boolean isActive() {

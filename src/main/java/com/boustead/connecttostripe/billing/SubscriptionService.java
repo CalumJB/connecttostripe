@@ -3,8 +3,11 @@ package com.boustead.connecttostripe.billing;
 import com.boustead.connecttostripe.exception.GlobalExceptionHandler;
 import com.stripe.Stripe;
 import com.stripe.model.Customer;
+import com.stripe.model.PaymentMethod;
 import com.stripe.model.SubscriptionItem;
+import com.stripe.model.StripeCollection;
 import com.stripe.net.RequestOptions;
+import com.stripe.param.PaymentMethodListParams;
 import com.stripe.param.SubscriptionCancelParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,10 +48,9 @@ public class SubscriptionService {
         subscription.setStripeAccountId(stripeAccountId);
         subscription.setStatus(stripeSubscription.getStatus());
         
-        // Fetch customer email and name from Stripe API if not already set
-        if ((subscription.getCustomerEmail() == null || subscription.getCustomerName() == null) && stripeSubscription.getCustomer() != null) {
+        // Fetch customer email, name and card details from Stripe API if not already set
+        if ((subscription.getCustomerEmail() == null || subscription.getCustomerName() == null || subscription.getHasCardDetails() == null) && stripeSubscription.getCustomer() != null) {
             try {
-//                Stripe.apiKey = stripeBillingSecret;
                 Customer customer = Customer.retrieve(stripeSubscription.getCustomer(),
                         RequestOptions.builder()
                                 .setApiKey(stripeBillingSecret)
@@ -59,8 +61,15 @@ public class SubscriptionService {
                 if (subscription.getCustomerName() == null) {
                     subscription.setCustomerName(customer.getName());
                 }
-                logger.info("Retrieved customer details - email: {}, name: {} for subscription: {}", 
-                           customer.getEmail(), customer.getName(), stripeSubscription.getId());
+                
+                // Check if customer has card details
+                if (subscription.getHasCardDetails() == null || !subscription.getHasCardDetails()) {
+                    boolean hasCard = checkCustomerHasCardDetails(stripeSubscription.getCustomer());
+                    subscription.setHasCardDetails(hasCard);
+                }
+                
+                logger.info("Retrieved customer details - email: {}, name: {}, hasCard: {} for subscription: {}", 
+                           customer.getEmail(), customer.getName(), subscription.getHasCardDetails(), stripeSubscription.getId());
             } catch (Exception e) {
                 logger.warn("Failed to retrieve customer details for subscription {}: {}", stripeSubscription.getId(), e.getMessage());
             }
@@ -90,6 +99,17 @@ public class SubscriptionService {
         subscription.setStatus(stripeSubscription.getStatus());
         subscription.setCustomerEmail(customerEmail);
         subscription.setCustomerName(customerName);
+        
+        // Check if customer has card details if not already set
+        if (subscription.getHasCardDetails() == null || !subscription.getHasCardDetails()) {
+            try {
+                boolean hasCard = checkCustomerHasCardDetails(stripeSubscription.getCustomer());
+                subscription.setHasCardDetails(hasCard);
+            } catch (Exception e) {
+                logger.warn("Failed to check card details for subscription {}: {}", stripeSubscription.getId(), e.getMessage());
+                subscription.setHasCardDetails(false);
+            }
+        }
         
         // Extract plan information from subscription items
         extractAndSetPlanDetails(stripeSubscription, subscription);
@@ -188,6 +208,37 @@ public class SubscriptionService {
         return subscriptionRepository.findByStripeCustomerId(stripeCustomerId);
     }
 
+    @Transactional
+    public void updateCustomerCardDetailsStatus(String stripeCustomerId) {
+        Optional<Subscription> subscriptionOpt = subscriptionRepository.findByStripeCustomerId(stripeCustomerId);
+        
+        if (subscriptionOpt.isPresent()) {
+            Subscription subscription = subscriptionOpt.get();
+            try {
+                // Update card details status
+                boolean hasCard = checkCustomerHasCardDetails(stripeCustomerId);
+                subscription.setHasCardDetails(hasCard);
+                
+                // Update customer name from Stripe
+                RequestOptions requestOptions = RequestOptions.builder()
+                        .setApiKey(stripeBillingSecret)
+                        .build();
+                Customer customer = Customer.retrieve(stripeCustomerId, requestOptions);
+                if (customer.getName() != null) {
+                    subscription.setCustomerName(customer.getName());
+                }
+                
+                subscriptionRepository.save(subscription);
+                logger.info("Updated card details status to {} and customer name to '{}' for customer: {}", 
+                           hasCard, customer.getName(), stripeCustomerId);
+            } catch (Exception e) {
+                logger.warn("Failed to update customer details for customer {}: {}", stripeCustomerId, e.getMessage());
+            }
+        } else {
+            logger.info("No subscription found for customer: {} - skipping customer details update", stripeCustomerId);
+        }
+    }
+
     private void extractAndSetPlanDetails(com.stripe.model.Subscription stripeSubscription, Subscription subscription) {
         String planName = null;
         
@@ -209,5 +260,25 @@ public class SubscriptionService {
         }
         
         subscription.setPlanName(planName);
+    }
+    
+    private boolean checkCustomerHasCardDetails(String customerId) {
+        try {
+            RequestOptions requestOptions = RequestOptions.builder()
+                    .setApiKey(stripeBillingSecret)
+                    .build();
+            
+            StripeCollection<PaymentMethod> paymentMethods = PaymentMethod.list(
+                    PaymentMethodListParams.builder()
+                            .setCustomer(customerId)
+                            .setType(PaymentMethodListParams.Type.CARD)
+                            .build(),
+                    requestOptions);
+            
+            return paymentMethods.getData() != null && !paymentMethods.getData().isEmpty();
+        } catch (Exception e) {
+            logger.warn("Failed to check payment methods for customer {}: {}", customerId, e.getMessage());
+            return false;
+        }
     }
 }
