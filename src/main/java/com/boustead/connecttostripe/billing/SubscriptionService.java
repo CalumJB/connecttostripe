@@ -84,11 +84,8 @@ public class SubscriptionService {
         Subscription savedSubscription = subscriptionRepository.save(subscription);
         
         // Sync to Mailchimp billing list
-        try {
-            billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
-        } catch (Exception e) {
-            logger.warn("Failed to sync subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
-        }
+        billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription)
+                .subscribe();
         
         return savedSubscription;
     }
@@ -104,11 +101,8 @@ public class SubscriptionService {
             Subscription savedSubscription = subscriptionRepository.save(sub);
             
             // Sync canceled subscription to Mailchimp billing list
-            try {
-                billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
-            } catch (Exception e) {
-                logger.warn("Failed to sync canceled subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
-            }
+            billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription)
+                    .subscribe();
         }
     }
 
@@ -216,11 +210,8 @@ public class SubscriptionService {
                 Subscription savedSubscription = subscriptionRepository.save(subscription);
                 
                 // Sync updated subscription to Mailchimp billing list
-                try {
-                    billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
-                } catch (Exception e) {
-                    logger.warn("Failed to sync updated subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
-                }
+                billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription)
+                        .subscribe();
                 
                 logger.info("Updated card details status to {} and customer name to '{}' for customer: {}", 
                            hasCard, customer.getName(), stripeCustomerId);
