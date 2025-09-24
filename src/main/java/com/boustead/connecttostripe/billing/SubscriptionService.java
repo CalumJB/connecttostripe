@@ -33,6 +33,9 @@ public class SubscriptionService {
     @Autowired
     private PlanConfigurationService planConfigurationService;
 
+    @Autowired
+    private BillingMailchimpService billingMailchimpService;
+
     @Value("${stripe.billing.secret}")
     private String stripeBillingSecret;
 
@@ -78,43 +81,16 @@ public class SubscriptionService {
         // Extract plan information from subscription items
         extractAndSetPlanDetails(stripeSubscription, subscription);
 
-        return subscriptionRepository.save(subscription);
-    }
-
-    @Transactional
-    public Subscription createOrUpdateSubscription(com.stripe.model.Subscription stripeSubscription, String stripeAccountId, String customerEmail) {
-        return createOrUpdateSubscription(stripeSubscription, stripeAccountId, customerEmail, null);
-    }
-    
-    @Transactional
-    public Subscription createOrUpdateSubscription(com.stripe.model.Subscription stripeSubscription, String stripeAccountId, String customerEmail, String customerName) {
-        Optional<Subscription> existingSubscription = subscriptionRepository
-                .findByStripeSubscriptionId(stripeSubscription.getId());
-
-        Subscription subscription = existingSubscription.orElse(new Subscription());
+        Subscription savedSubscription = subscriptionRepository.save(subscription);
         
-        subscription.setStripeSubscriptionId(stripeSubscription.getId());
-        subscription.setStripeCustomerId(stripeSubscription.getCustomer());
-        subscription.setStripeAccountId(stripeAccountId);
-        subscription.setStatus(stripeSubscription.getStatus());
-        subscription.setCustomerEmail(customerEmail);
-        subscription.setCustomerName(customerName);
-        
-        // Check if customer has card details if not already set
-        if (subscription.getHasCardDetails() == null || !subscription.getHasCardDetails()) {
-            try {
-                boolean hasCard = checkCustomerHasCardDetails(stripeSubscription.getCustomer());
-                subscription.setHasCardDetails(hasCard);
-            } catch (Exception e) {
-                logger.warn("Failed to check card details for subscription {}: {}", stripeSubscription.getId(), e.getMessage());
-                subscription.setHasCardDetails(false);
-            }
+        // Sync to Mailchimp billing list
+        try {
+            billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
+        } catch (Exception e) {
+            logger.warn("Failed to sync subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
         }
         
-        // Extract plan information from subscription items
-        extractAndSetPlanDetails(stripeSubscription, subscription);
-
-        return subscriptionRepository.save(subscription);
+        return savedSubscription;
     }
 
     @Transactional
@@ -125,7 +101,14 @@ public class SubscriptionService {
         if (subscription.isPresent()) {
             Subscription sub = subscription.get();
             sub.setStatus("canceled");
-            subscriptionRepository.save(sub);
+            Subscription savedSubscription = subscriptionRepository.save(sub);
+            
+            // Sync canceled subscription to Mailchimp billing list
+            try {
+                billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
+            } catch (Exception e) {
+                logger.warn("Failed to sync canceled subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
+            }
         }
     }
 
@@ -145,6 +128,8 @@ public class SubscriptionService {
                             subscription.getStripeSubscriptionId(),
                             requestOptions);
                     stripeSubscription.cancel(SubscriptionCancelParams.builder().build(), requestOptions);
+                    
+                    //This is trigger the cancel webhook and call cancelSubscription which will handle database update etc
                     
                     logger.info("Canceled Stripe subscription: {} for account: {}", 
                                subscription.getStripeSubscriptionId(), stripeAccountId);
@@ -228,7 +213,15 @@ public class SubscriptionService {
                     subscription.setCustomerName(customer.getName());
                 }
                 
-                subscriptionRepository.save(subscription);
+                Subscription savedSubscription = subscriptionRepository.save(subscription);
+                
+                // Sync updated subscription to Mailchimp billing list
+                try {
+                    billingMailchimpService.syncSubscriptionToMailchimp(savedSubscription);
+                } catch (Exception e) {
+                    logger.warn("Failed to sync updated subscription {} to Mailchimp billing list: {}", savedSubscription.getId(), e.getMessage());
+                }
+                
                 logger.info("Updated card details status to {} and customer name to '{}' for customer: {}", 
                            hasCard, customer.getName(), stripeCustomerId);
             } catch (Exception e) {

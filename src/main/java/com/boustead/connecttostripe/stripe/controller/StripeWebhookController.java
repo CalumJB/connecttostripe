@@ -9,11 +9,13 @@ import com.boustead.connecttostripe.stripe.service.StripeWebhookCounterService;
 import com.google.gson.JsonSyntaxException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
+import com.stripe.model.LineItem;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.ApiResource;
 import com.stripe.net.Webhook;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.StripeObject;
+import com.stripe.param.checkout.SessionRetrieveParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -138,7 +140,8 @@ public class StripeWebhookController {
                 return addCustomerToMailchimpAudience(mailchimpUser, customerEmail, customerName)
                         .doOnSuccess(result -> System.out.println("Customer " + customerEmail + " added to Mailchimp audience: " + mailchimpUser.getSelectedAudienceId()))
                         .doOnError(error -> System.err.println("Failed to add customer to Mailchimp: " + error.getMessage()))
-                        .then(Mono.just("OK"));
+                        .onErrorResume(e -> Mono.empty())
+                        .thenReturn("OK");
             }
             case "account.application.deauthorized" -> {
                 System.out.println("Account " + account + " deauthorized the application");
