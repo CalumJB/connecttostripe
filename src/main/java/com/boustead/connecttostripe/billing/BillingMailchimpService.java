@@ -36,7 +36,7 @@ public class BillingMailchimpService {
     private String environment;
 
     @Autowired
-    private WebClient.Builder webClientBuilder;
+    private WebClient mailchimpApiClient;
 
     public Mono<Void> syncSubscriptionToMailchimp(Subscription subscription) {
         if (subscription.getCustomerEmail() == null) {
@@ -46,10 +46,6 @@ public class BillingMailchimpService {
 
         try {
             String emailHash = generateEmailHash(subscription.getCustomerEmail());
-            WebClient client = webClientBuilder
-                    .baseUrl("https://" + serverPrefix + ".api.mailchimp.com/3.0")
-                    .defaultHeader("Authorization", "Bearer " + mailchimpApiKey)
-                    .build();
 
             BillingContactRequest request = new BillingContactRequest(
                     subscription.getCustomerEmail(),
@@ -63,8 +59,10 @@ public class BillingMailchimpService {
                     )
             );
 
-            return client.put()
-                    .uri("/lists/{audienceId}/members/{emailHash}", billingAudienceId, emailHash)
+            return mailchimpApiClient.put()
+                    .uri("https://{server}.api.mailchimp.com/3.0/lists/{audienceId}/members/{emailHash}", 
+                         serverPrefix, billingAudienceId, emailHash)
+                    .header("Authorization", "Bearer " + mailchimpApiKey)
                     .bodyValue(request)
                     .retrieve()
                     .toBodilessEntity()
