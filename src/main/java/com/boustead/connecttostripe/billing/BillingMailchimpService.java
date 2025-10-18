@@ -44,6 +44,10 @@ public class BillingMailchimpService {
             return Mono.empty();
         }
 
+        if(subscription.getCustomerEmail().contains("stripe.com")) {
+            return Mono.empty();
+        }
+
         try {
             String emailHash = generateEmailHash(subscription.getCustomerEmail());
 
@@ -60,7 +64,7 @@ public class BillingMailchimpService {
             );
 
             return mailchimpApiClient.put()
-                    .uri("https://{server}.api.mailchimp.com/3.0/lists/{audienceId}/members/{emailHash}", 
+                    .uri("https://{server}.api.mailchimp.com/3.0/lists/{audienceId}/members/{emailHash}",
                          serverPrefix, billingAudienceId, emailHash)
                     .header("Authorization", "Bearer " + mailchimpApiKey)
                     .bodyValue(request)

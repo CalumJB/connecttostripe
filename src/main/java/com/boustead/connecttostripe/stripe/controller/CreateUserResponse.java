@@ -3,14 +3,12 @@ package com.boustead.connecttostripe.stripe.controller;
 public class CreateUserResponse {
     private boolean success;
     private String message;
-    private String stripeUserId;
 
     public CreateUserResponse() {}
 
-    public CreateUserResponse(boolean success, String message, String stripeUserId) {
+    public CreateUserResponse(boolean success, String message) {
         this.success = success;
         this.message = message;
-        this.stripeUserId = stripeUserId;
     }
 
     public boolean isSuccess() {
@@ -21,9 +19,6 @@ public class CreateUserResponse {
         return message;
     }
 
-    public String getStripeUserId() {
-        return stripeUserId;
-    }
 
     public void setSuccess(boolean success) {
         this.success = success;
@@ -33,7 +28,4 @@ public class CreateUserResponse {
         this.message = message;
     }
 
-    public void setStripeUserId(String stripeUserId) {
-        this.stripeUserId = stripeUserId;
-    }
 }

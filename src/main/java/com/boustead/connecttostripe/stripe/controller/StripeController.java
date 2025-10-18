@@ -59,23 +59,22 @@ public class StripeController {
 
         return Mono.fromCallable(() -> {
             Optional<StripeUser> existingUser =
-                    stripeUserRepository.findByStripeUserIdAndStripeAccountId(userId, accountId);
+                    stripeUserRepository.findByStripeAccountId(accountId);
 
             if (existingUser.isPresent()) {
                 logger.info("User already exists. UserId: {}, AccountId: {}", userId, accountId);
                 return ResponseEntity.ok(
-                        new CreateUserResponse(true, "User already exists", existingUser.get().getStripeAccountId())
+                        new CreateUserResponse(true, "User already exists")
                 );
             }
 
             StripeUser newUser = new StripeUser();
-            newUser.setStripeUserId(userId);
             newUser.setStripeAccountId(accountId);
             StripeUser saved = stripeUserRepository.save(newUser);
 
             logger.info("User created successfully. UserId: {}, AccountId: {}", userId, accountId);
             return ResponseEntity.ok(
-                    new CreateUserResponse(true, "User created successfully", saved.getStripeAccountId())
+                    new CreateUserResponse(true, "User created successfully")
             );
         });
     }

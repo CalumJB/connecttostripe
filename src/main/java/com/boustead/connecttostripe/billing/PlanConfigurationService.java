@@ -58,9 +58,9 @@ public class PlanConfigurationService {
         planConfigurations.put("price_1S0cLSF8MQhGKD542b2g6b2s", new PlanConfiguration("PRO", 5000, "Pro"));
         //PROD
         //MONTHLY
-        planConfigurations.put("price_1S3AxOF7gMXUJNvvgXXMa1zN", new PlanConfiguration("PRO", 5000, "Pro"));
+        planConfigurations.put("price_1SCzeVF7gMXUJNvv8yl2IVeG", new PlanConfiguration("PRO", 5000, "Pro"));
         //YEARLY
-        planConfigurations.put("price_1S3AxOF7gMXUJNvvC6ngQIVO", new PlanConfiguration("PRO", 5000, "Pro"));
+        planConfigurations.put("price_1SCzetF7gMXUJNvvuz7nx1io", new PlanConfiguration("PRO", 5000, "Pro"));
         
         // Default plan for unknown configurations
         defaultPlan = new PlanConfiguration("UNKNOWN", 5000, "Unknown");
